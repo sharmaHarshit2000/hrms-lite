@@ -7,9 +7,9 @@ A lightweight Human Resource Management System (HRMS Lite) that allows an admin 
 ## Live Links
 - **Live Frontend (Vercel):** https://hrms-lite-one-opal.vercel.app/
 - **GitHub Repository:** https://github.com/sharmaHarshit2000/hrms-lite
-- **Hosted Backend API:** *(add your Render/Railway URL here)*  
-  Example: `https://<your-backend>.onrender.com`  
-  Health check should work at: `https://<your-backend>.onrender.com/health`
+- **Hosted Backend API:** *https://hrms-lite-9aov.onrender.com*  
+  Example: `https://hrms-lite-9aov.onrender.com`  
+  Health check should work at: `https://hrms-lite-9aov.onrender.com/health`
 
 ---
 
@@ -116,7 +116,7 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 
 ### Frontend on Vercel
 **Vercel ENV:**
-- `VITE_API_BASE_URL=https://<your-backend>.onrender.com`
+- `VITE_API_BASE_URL=https://hrms-lite-9aov.onrender.com`
 
 Build settings:
 - Root directory: `frontend`
@@ -141,4 +141,4 @@ Build settings:
 ## Submission Checklist
 - [x] Public GitHub repo: https://github.com/sharmaHarshit2000/hrms-lite
 - [x] Live frontend: https://hrms-lite-one-opal.vercel.app/
-- [x] Hosted backend API URL: *(add your deployed backend URL and verify /health)*
+- [x] Hosted backend API URL: *(https://hrms-lite-9aov.onrender.com/health)*
