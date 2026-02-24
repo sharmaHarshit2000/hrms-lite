@@ -1,334 +1,140 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Users, Calendar, LayoutDashboard, Plus, Trash2, CheckCircle, XCircle, Search } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from "react";
+import { api } from "./api";
+import Layout from "./components/Layout";
+import EmployeeForm from "./components/EmployeeForm";
+import EmployeeList from "./components/EmployeeList";
+import AttendancePanel from "./components/AttendancePanel";
 
-const API_BASE = 'http://localhost:5000/api';
+export default function App() {
+  const [employees, setEmployees] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
 
-function App() {
-    const [activeTab, setActiveTab] = useState('dashboard');
-    const [employees, setEmployees] = useState([]);
-    const [stats, setStats] = useState({ totalEmployees: 0, presentToday: 0 });
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-    useEffect(() => {
-        fetchData();
-    }, [activeTab]);
+  const selectedEmployee = useMemo(
+    () => employees.find((e) => e.id === selectedId) || null,
+    [employees, selectedId]
+  );
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [empRes, statsRes] = await Promise.all([
-                axios.get(`${API_BASE}/employees`),
-                axios.get(`${API_BASE}/dashboard/stats`)
-            ]);
-            setEmployees(empRes.data);
-            setStats(statsRes.data);
-            setError(null);
-        } catch (err) {
-            setError('Failed to connect to the server. Please ensure the backend is running.');
-        } finally {
-            setLoading(false);
-        }
-    };
+  async function refresh() {
+    setError("");
+    setLoading(true);
+    try {
+      const list = await api.listEmployees();
+      setEmployees(list);
+      if (list.length === 0) setSelectedId(null);
+      else if (selectedId && !list.find((e) => e.id === selectedId)) setSelectedId(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-    return (
-        <div>
-            <nav className="nav">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ background: 'var(--primary)', color: 'white', padding: '0.5rem', borderRadius: '8px' }}>
-                        <Users size={24} />
-                    </div>
-                    <h2 style={{ margin: 0 }}>HRMS Lite</h2>
-                </div>
-                <div className="nav-links">
-                    <span className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-                        <LayoutDashboard size={18} /> Dashboard
-                    </span>
-                    <span className={`nav-link ${activeTab === 'employees' ? 'active' : ''}`} onClick={() => setActiveTab('employees')}>
-                        <Users size={18} /> Employees
-                    </span>
-                    <span className={`nav-link ${activeTab === 'attendance' ? 'active' : ''}`} onClick={() => setActiveTab('attendance')}>
-                        <Calendar size={18} /> Attendance
-                    </span>
-                </div>
-            </nav>
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-            <main className="container">
-                {error && (
-                    <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', border: '1px solid #fecaca' }}>
-                        {error}
-                    </div>
-                )}
+  async function onAdd(payload) {
+    setError("");
+    try {
+      const created = await api.addEmployee(payload);
+      setEmployees((prev) => [created, ...prev]);
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    }
+  }
 
-                {activeTab === 'dashboard' && <Dashboard stats={stats} employees={employees} />}
-                {activeTab === 'employees' && <EmployeeManagement employees={employees} onRefresh={fetchData} />}
-                {activeTab === 'attendance' && <AttendanceManagement employees={employees} onRefresh={fetchData} />}
-            </main>
-        </div>
-    );
-}
+  async function onDelete(id) {
+    setError("");
+    try {
+      await api.deleteEmployee(id);
+      setEmployees((prev) => prev.filter((e) => e.id !== id));
+      if (selectedId === id) setSelectedId(null);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
 
-// Sub-components
-function Dashboard({ stats, employees }) {
-    return (
-        <div>
-            <h1>Dashboard Overview</h1>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
-                <div className="card">
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Total Employees</p>
-                    <h2 style={{ fontSize: '2.5rem', margin: '0.5rem 0' }}>{stats.totalEmployees}</h2>
-                    <div style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Users size={16} /> Active Staff
-                    </div>
-                </div>
-                <div className="card">
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Attendance Today</p>
-                    <h2 style={{ fontSize: '2.5rem', margin: '0.5rem 0' }}>{stats.presentToday}</h2>
-                    <div style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <CheckCircle size={16} /> Present Now
-                    </div>
-                </div>
-            </div>
-
-            <h3>Recent Employees</h3>
-            <div className="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>ID</th>
-                            <th>Department</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {employees.length === 0 ? (
-                            <tr><td colSpan="4" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No employees found.</td></tr>
-                        ) : (
-                            employees.slice(-5).reverse().map(emp => (
-                                <tr key={emp.id}>
-                                    <td>{emp.fullName}</td>
-                                    <td><code>{emp.employeeId}</code></td>
-                                    <td>{emp.department}</td>
-                                    <td><span className="badge badge-present">Active</span></td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-}
-
-function EmployeeManagement({ employees, onRefresh }) {
-    const [showForm, setShowForm] = useState(false);
-    const [formData, setFormData] = useState({ employeeId: '', fullName: '', email: '', department: '' });
-    const [submitting, setSubmitting] = useState(false);
-    const [msg, setMsg] = useState(null);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setSubmitting(true);
-        try {
-            await axios.post(`${API_BASE}/employees`, formData);
-            setMsg({ type: 'success', text: 'Employee added successfully!' });
-            setFormData({ employeeId: '', fullName: '', email: '', department: '' });
-            setTimeout(() => setShowForm(false), 1500);
-            onRefresh();
-        } catch (err) {
-            setMsg({ type: 'error', text: err.response?.data?.error || 'Failed to add employee' });
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const handleDelete = async (id) => {
-        if (!confirm('Are you sure you want to delete this employee?')) return;
-        try {
-            await axios.delete(`${API_BASE}/employees/${id}`);
-            onRefresh();
-        } catch (err) {
-            alert('Failed to delete employee');
-        }
-    };
-
-    return (
-        <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <h1>Employees</h1>
-                <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-                    <Plus size={18} /> Add Employee
-                </button>
-            </div>
-
-            {showForm && (
-                <div className="card" style={{ marginBottom: '2rem', border: '2px solid var(--primary)' }}>
-                    <h3>New Employee</h3>
-                    <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                        <div>
-                            <label>Employee ID</label>
-                            <input value={formData.employeeId} onChange={e => setFormData({ ...formData, employeeId: e.target.value })} placeholder="EMP001" required />
-                        </div>
-                        <div>
-                            <label>Full Name</label>
-                            <input value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} placeholder="John Doe" required />
-                        </div>
-                        <div>
-                            <label>Email Address</label>
-                            <input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="john@example.com" required />
-                        </div>
-                        <div>
-                            <label>Department</label>
-                            <select value={formData.department} onChange={e => setFormData({ ...formData, department: e.target.value })} required>
-                                <option value="">Select Dept</option>
-                                <option value="Engineering">Engineering</option>
-                                <option value="HR">HR</option>
-                                <option value="Marketing">Marketing</option>
-                                <option value="Sales">Sales</option>
-                            </select>
-                        </div>
-                        <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-                            <button type="button" className="btn" onClick={() => setShowForm(false)}>Cancel</button>
-                            <button type="submit" className="btn btn-primary" disabled={submitting}>
-                                {submitting ? 'Saving...' : 'Save Employee'}
-                            </button>
-                        </div>
-                    </form>
-                    {msg && <p style={{ marginTop: '1rem', color: msg.type === 'success' ? 'var(--success)' : 'var(--error)' }}>{msg.text}</p>}
-                </div>
-            )}
-
-            <div className="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Full Name</th>
-                            <th>Email</th>
-                            <th>Department</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {employees.length === 0 ? (
-                            <tr><td colSpan="5" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No employees found. Add one to get started.</td></tr>
-                        ) : (
-                            employees.map(emp => (
-                                <tr key={emp.id}>
-                                    <td><code>{emp.employeeId}</code></td>
-                                    <td style={{ fontWeight: 600 }}>{emp.fullName}</td>
-                                    <td>{emp.email}</td>
-                                    <td>{emp.department}</td>
-                                    <td>
-                                        <button className="btn btn-danger" onClick={() => handleDelete(emp.id)}><Trash2 size={16} /></button>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-}
-
-function AttendanceManagement({ employees, onRefresh }) {
-    const [selectedEmp, setSelectedEmp] = useState(null);
-    const [history, setHistory] = useState([]);
-    const [loadingHistory, setLoadingHistory] = useState(false);
-    const today = new Date().toISOString().split('T')[0];
-
-    const markAttendance = async (empId, status) => {
-        try {
-            await axios.post(`${API_BASE}/attendance`, {
-                employeeId: empId,
-                date: today,
-                status: status
-            });
-            onRefresh();
-            if (selectedEmp?.id === empId) fetchHistory(empId);
-        } catch (err) {
-            alert('Failed to mark attendance');
-        }
-    };
-
-    const fetchHistory = async (empId) => {
-        setLoadingHistory(true);
-        try {
-            const res = await axios.get(`${API_BASE}/attendance/${empId}`);
-            setHistory(res.data);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoadingHistory(false);
-        }
-    };
-
-    return (
-        <div style={{ display: 'grid', gridTemplateColumns: selectedEmp ? '1fr 1fr' : '1fr', gap: '2rem' }}>
+  return (
+    <Layout>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+        <section className="bg-white/80 backdrop-blur-md p-8 rounded-3xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500 animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex items-center justify-between mb-8">
             <div>
-                <h1>Daily Attendance</h1>
-                <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)' }}>Marking for: <strong>{new Date().toDateString()}</strong></p>
-
-                <div className="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Employee</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {employees.map(emp => (
-                                <tr key={emp.id} style={{ cursor: 'pointer', background: selectedEmp?.id === emp.id ? '#f1f5f9' : 'transparent' }} onClick={() => { setSelectedEmp(emp); fetchHistory(emp.id); }}>
-                                    <td>
-                                        <div style={{ fontWeight: 600 }}>{emp.fullName}</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{emp.department}</div>
-                                    </td>
-                                    <td>
-                                        <div style={{ display: 'flex', gap: '0.5rem' }} onClick={e => e.stopPropagation()}>
-                                            <button className="btn btn-primary" style={{ padding: '0.4rem 0.8rem' }} onClick={() => markAttendance(emp.id, 'Present')}>
-                                                <CheckCircle size={14} /> Present
-                                            </button>
-                                            <button className="btn btn-danger" style={{ padding: '0.4rem 0.8rem' }} onClick={() => markAttendance(emp.id, 'Absent')}>
-                                                <XCircle size={14} /> Absent
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Employee Registry</h2>
+              <p className="text-slate-400 text-sm font-medium mt-1">Manage your team and records.</p>
             </div>
+            <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+          </div>
 
-            {selectedEmp && (
-                <div className="card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                        <h3>History: {selectedEmp.fullName}</h3>
-                        <button className="btn" style={{ padding: '0.2rem' }} onClick={() => setSelectedEmp(null)}><XCircle size={18} /></button>
-                    </div>
+          <EmployeeForm onAdd={onAdd} />
+          {error ? (
+            <div className="mt-6 p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl text-sm font-bold flex items-center">
+              <span className="mr-2">⚠️</span> {error}
+            </div>
+          ) : null}
 
-                    {loadingHistory ? <p>Loading history...</p> : (
-                        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                            {history.length === 0 ? <p style={{ color: 'var(--text-secondary)' }}>No records yet.</p> : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                    {history.map(rec => (
-                                        <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.8rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                                            <span>{rec.date}</span>
-                                            <span className={`badge badge-${rec.status.toLowerCase()}`}>{rec.status}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
+          <div className="mt-12">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center">
+              Active Directory
+              <span className="ml-3 h-px flex-1 bg-slate-100"></span>
+            </h3>
+            {loading ? (
+              <div className="text-center py-16">
+                <div className="inline-block w-8 h-8 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+                <p className="mt-4 text-slate-400 font-bold text-xs uppercase tracking-widest">Synchronizing...</p>
+              </div>
+            ) : employees.length === 0 ? (
+              <div className="text-center py-20 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200">
+                <p className="text-slate-400 font-bold">No records found.</p>
+              </div>
+            ) : (
+              <EmployeeList
+                employees={employees}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onDelete={onDelete}
+              />
             )}
-        </div>
-    );
-}
+          </div>
+        </section>
 
-export default App;
+        <section className="bg-white/80 backdrop-blur-md p-8 rounded-3xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] sticky top-32 transition-all duration-500 animate-in fade-in slide-in-from-bottom-8">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Attendance</h2>
+              <p className="text-slate-400 text-sm font-medium mt-1">Status tracking & historical logs.</p>
+            </div>
+            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </div>
+          </div>
+
+          {!selectedEmployee ? (
+            <div className="text-center py-32 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 group">
+              <div className="w-16 h-16 bg-white border border-slate-200 rounded-2xl flex items-center justify-center mx-auto mb-6 text-slate-300 group-hover:scale-110 transition-transform duration-500 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </div>
+              <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Select a profile to proceed</p>
+            </div>
+          ) : (
+            <AttendancePanel employee={selectedEmployee} />
+          )}
+        </section>
+      </div>
+    </Layout>
+  );
+}
