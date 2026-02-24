@@ -141,4 +141,4 @@ Build settings:
 ## Submission Checklist
 - [x] Public GitHub repo: https://github.com/sharmaHarshit2000/hrms-lite
 - [x] Live frontend: https://hrms-lite-one-opal.vercel.app/
-- [ ] Hosted backend API URL: *(add your deployed backend URL and verify /health)*
+- [x] Hosted backend API URL: *(add your deployed backend URL and verify /health)*
